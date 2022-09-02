@@ -373,20 +373,29 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
             else:
                 img = augment(img, args.dc_aug_param, device=args.device)
         lab = datum[1].long().to(args.device)
-        if lab not in class_wise_acc:
-            class_wise_acc[lab] = [0., 0.]
+        
         n_b = lab.shape[0]
+
+        # np.argmax(output.cpu().data.numpy()
+        predicted_labels = np.argmax(output.cpu().data.numpy(),axis=-1)
+        actual_labels = lab.cpu().data.numpy()
+        for predict_i, label_i in zip(predicted_labels, actual_labels):
+            if label_i not in class_wise_acc:
+                class_wise_acc[label_i] = [0., 0.]
+            else:
+                class_wise_acc[label_i][0] += (label_i==predict_i)
+                class_wise_acc[label_i][1] += 1.
 
         output = net(img)
         loss = criterion(output, lab)
-        acc = np.sum(np.equal(np.argmax(output.cpu().data.numpy(), axis=-1), lab.cpu().data.numpy()))
+        acc = np.sum(np.equal(predicted_labels, lab.cpu().data.numpy()))
 
         loss_avg += loss.item()*n_b
         acc_avg += acc
         num_exp += n_b
         # add label-wise accuracy too???
-        class_wise_acc[lab][0] += acc
-        class_wise_acc[lab][1] += n_b
+        #class_wise_acc[lab][0] += acc
+        #class_wise_acc[lab][1] += n_b
 
         if mode == 'train':
             optimizer.zero_grad()
@@ -508,6 +517,15 @@ def get_daparam(dataset, model, model_eval, ipc):
     dc_aug_param['strategy'] = 'none'
 
     if dataset == 'MNIST':
+        dc_aug_param['strategy'] = 'crop_scale_rotate'
+
+    if dataset == 'MNIST_balanced_sample':
+        dc_aug_param['strategy'] = 'crop_scale_rotate'
+
+    if dataset == 'MNIST_odd_oversample':
+        dc_aug_param['strategy'] = 'crop_scale_rotate'
+
+    if dataset == 'MNIST_one_oversample':
         dc_aug_param['strategy'] = 'crop_scale_rotate'
 
     if model_eval in ['ConvNetBN']: # Data augmentation makes model training with Batch Norm layer easier.
