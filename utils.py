@@ -377,19 +377,20 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
         n_b = lab.shape[0]
 
         # np.argmax(output.cpu().data.numpy()
+        
+
+        output = net(img)
+        loss = criterion(output, lab)
         predicted_labels = np.argmax(output.cpu().data.numpy(),axis=-1)
         actual_labels = lab.cpu().data.numpy()
+        acc = np.sum(np.equal(predicted_labels, actual_labels))
+        
         for predict_i, label_i in zip(predicted_labels, actual_labels):
             if label_i not in class_wise_acc:
                 class_wise_acc[label_i] = [0., 0.]
             else:
                 class_wise_acc[label_i][0] += (label_i==predict_i)
                 class_wise_acc[label_i][1] += 1.
-
-        output = net(img)
-        loss = criterion(output, lab)
-        acc = np.sum(np.equal(predicted_labels, lab.cpu().data.numpy()))
-
         loss_avg += loss.item()*n_b
         acc_avg += acc
         num_exp += n_b
