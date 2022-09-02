@@ -426,7 +426,8 @@ def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args):
     loss_test, acc_test, acc_test_class = epoch('test', testloader, net, optimizer, criterion, args, aug = False)
     print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f' % 
         (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test))
-    print("class-wise accuracy", class_wise_acc)
+    print("class-wise accuracy test", acc_test_class)
+    print("class-wise accuracy test", acc_train_class)
 
     return net, acc_train, acc_test, acc_train_class, acc_test_class
 
