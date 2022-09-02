@@ -21,6 +21,65 @@ def get_dataset(dataset, data_path):
         dst_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
         class_names = [str(c) for c in range(num_classes)]
 
+    # Yiqun: modify sampling for other MNIST variant
+    elif dataset == 'MNIST_balanced_sample':
+        channel = 1
+        im_size = (28, 28)
+        num_classes = 10
+        mean = [0.1307]
+        std = [0.3081]
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        dst_train = datasets.MNIST(data_path, train=True, download=True, transform=transform) # no augmentation
+        dst_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
+        np.random.seed(2022)
+        subset_size = 6000
+        all_label_train_vec = [x[1] for x in dst_train]
+        balanced_index = np.random.choice(len(all_label_train_vec), 
+            size=subset_size, replace=False)
+        dst_train = torch.utils.data.Subset(dst_train, balanced_index)
+        class_names = [str(c) for c in range(num_classes)]
+
+    elif dataset == 'MNIST_odd_oversample':
+        channel = 1
+        im_size = (28, 28)
+        num_classes = 10
+        mean = [0.1307]
+        std = [0.3081]
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        dst_train = datasets.MNIST(data_path, train=True, download=True, transform=transform) # no augmentation
+        dst_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
+        np.random.seed(2022)
+        subset_size = 6000
+        all_label_train_vec = [x[1] for x in dst_train]
+        # oversample odd numbers
+        weight_vec_1 = np.array([9 if x%2==1 else 1 for x in all_label_train_vec])
+        weight_vec_1 = weight_vec_1/np.sum(weight_vec_1)
+        imbalanced_index_1 = np.random.choice(len(all_label_train_vec), size=subset_size, 
+                                  replace=False, p=weight_vec_1)
+        dst_train = torch.utils.data.Subset(dst_train, imbalanced_index_1)
+        class_names = [str(c) for c in range(num_classes)]
+
+    elif dataset == 'MNIST_one_oversample':
+        channel = 1
+        im_size = (28, 28)
+        num_classes = 10
+        mean = [0.1307]
+        std = [0.3081]
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        dst_train = datasets.MNIST(data_path, train=True, download=True, transform=transform) # no augmentation
+        dst_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
+        np.random.seed(2022)
+        subset_size = 6000
+        all_label_train_vec = [x[1] for x in dst_train]
+        # oversample odd numbers
+        weight_vec_2 = np.array([9 if x==1 else 1/9 for x in all_label_train_vec])
+        weight_vec_2 = weight_vec_2/np.sum(weight_vec_2)
+        imbalanced_index_2 = np.random.choice(len(all_label_train_vec), size=subset_size, 
+                                  replace=False, p=weight_vec_2)
+
+        dst_train = torch.utils.data.Subset(dst_train, imbalanced_index_2)
+        class_names = [str(c) for c in range(num_classes)]
+# oversample 1
     elif dataset == 'FashionMNIST':
         channel = 1
         im_size = (28, 28)
@@ -267,7 +326,6 @@ def match_loss(gw_syn, gw_real, args):
 
     else:
         exit('unknown distance function: %s'%args.dis_metric)
-
     return dis
 
 
@@ -294,10 +352,13 @@ def get_loops(ipc):
 
 
 
+# yiqun: modify this to report class-wise loss too
 def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
     loss_avg, acc_avg, num_exp = 0, 0, 0
+    class_wise_acc = {} # dict; first num is acc, second is total exp
     net = net.to(args.device)
     criterion = criterion.to(args.device)
+    # labels are from 0--9
 
     if mode == 'train':
         net.train()
@@ -312,6 +373,8 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
             else:
                 img = augment(img, args.dc_aug_param, device=args.device)
         lab = datum[1].long().to(args.device)
+        if lab not in class_wise_acc:
+            class_wise_acc[lab] = [0., 0.]
         n_b = lab.shape[0]
 
         output = net(img)
@@ -321,6 +384,9 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
         loss_avg += loss.item()*n_b
         acc_avg += acc
         num_exp += n_b
+        # add label-wise accuracy too???
+        class_wise_acc[lab][0] += acc
+        class_wise_acc[lab][1] += n_b
 
         if mode == 'train':
             optimizer.zero_grad()
@@ -329,8 +395,10 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
 
     loss_avg /= num_exp
     acc_avg /= num_exp
+    for label in class_wise_acc.keys():
+        class_wise_acc[label] = class_wise_acc[label][0]/class_wise_acc[label][1]
 
-    return loss_avg, acc_avg
+    return loss_avg, acc_avg, class_wise_acc
 
 
 
@@ -349,16 +417,18 @@ def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args):
 
     start = time.time()
     for ep in range(Epoch+1):
-        loss_train, acc_train = epoch('train', trainloader, net, optimizer, criterion, args, aug = True)
+        loss_train, acc_train, acc_train_class = epoch('train', trainloader, net, optimizer, criterion, args, aug = True)
         if ep in lr_schedule:
             lr *= 0.1
             optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
 
     time_train = time.time() - start
-    loss_test, acc_test = epoch('test', testloader, net, optimizer, criterion, args, aug = False)
-    print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test))
+    loss_test, acc_test, acc_test_class = epoch('test', testloader, net, optimizer, criterion, args, aug = False)
+    print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f' % 
+        (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test))
+    print("class-wise accuracy", class_wise_acc)
 
-    return net, acc_train, acc_test
+    return net, acc_train, acc_test, acc_train_class, acc_test_class
 
 
 
