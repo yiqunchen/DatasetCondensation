@@ -390,7 +390,7 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
                 class_wise_acc[label_i] = [0., 0.]
             else:
                 class_wise_acc[label_i][0] += (label_i==predict_i)
-                class_wise_acc[label_i][1] += 1.
+                class_wise_acc[label_i][1] += 1
         loss_avg += loss.item()*n_b
         acc_avg += acc
         num_exp += n_b
@@ -405,10 +405,12 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug):
 
     loss_avg /= num_exp
     acc_avg /= num_exp
-    for label in class_wise_acc.keys():
-        class_wise_acc[label] = class_wise_acc[label][0]/class_wise_acc[label][1]
 
-    return loss_avg, acc_avg, class_wise_acc
+    result_dict = {}
+    for label in class_wise_acc.keys():
+        result_dict[label] = class_wise_acc[label][0]/max(1,class_wise_acc[label][1])
+
+    return loss_avg, acc_avg, result_dict
 
 
 
