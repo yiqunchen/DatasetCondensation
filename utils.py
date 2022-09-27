@@ -151,6 +151,25 @@ def get_dataset(dataset, data_path):
         dst_train = torch.utils.data.Subset(dst_train, imbalanced_index_1)
         class_names = [str(c) for c in range(num_classes)]
 
+    elif dataset == 'CIFAR10_even_oversample': # oversample cars, cat, cat, dog, horse, truck, 
+        channel = 3
+        im_size = (32, 32)
+        num_classes = 10
+        mean = [0.4914, 0.4822, 0.4465]
+        std = [0.2023, 0.1994, 0.2010]
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        dst_train = datasets.CIFAR10(data_path, train=True, download=True, transform=transform) # no augmentation
+        dst_test = datasets.CIFAR10(data_path, train=False, download=True, transform=transform)
+        np.random.seed(2022)
+        subset_size = 10000
+        all_label_train_vec = [x[1] for x in dst_train]
+        # oversample odd numbers
+        weight_vec_1 = np.array([90 if x%2==0 else 1 for x in all_label_train_vec])
+        weight_vec_1 = weight_vec_1/np.sum(weight_vec_1)
+        imbalanced_index_1 = np.random.choice(len(all_label_train_vec), size=subset_size, 
+                                  replace=False, p=weight_vec_1)
+        dst_train = torch.utils.data.Subset(dst_train, imbalanced_index_1)
+        class_names = [str(c) for c in range(num_classes)]
     elif dataset == 'CIFAR10_one_oversample': # oversample airplane
         channel = 3
         im_size = (32, 32)
