@@ -144,7 +144,7 @@ def get_dataset(dataset, data_path):
         subset_size = 10000
         all_label_train_vec = [x[1] for x in dst_train]
         # oversample odd numbers
-        weight_vec_1 = np.array([9 if x%2==1 else 1 for x in all_label_train_vec])
+        weight_vec_1 = np.array([90 if x%2==1 else 1 for x in all_label_train_vec])
         weight_vec_1 = weight_vec_1/np.sum(weight_vec_1)
         imbalanced_index_1 = np.random.choice(len(all_label_train_vec), size=subset_size, 
                                   replace=False, p=weight_vec_1)
@@ -164,7 +164,7 @@ def get_dataset(dataset, data_path):
         subset_size = 10000
         all_label_train_vec = [x[1] for x in dst_train]
         # oversample odd numbers
-        weight_vec_2 = np.array([9 if x==0 else 1/9 for x in all_label_train_vec])
+        weight_vec_2 = np.array([90 if x==0 else 1/9 for x in all_label_train_vec])
         weight_vec_2 = weight_vec_2/np.sum(weight_vec_2)
         imbalanced_index_2 = np.random.choice(len(all_label_train_vec), size=subset_size, 
                                   replace=False, p=weight_vec_2)
